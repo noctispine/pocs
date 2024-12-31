@@ -15,13 +15,6 @@
 
 ---
 
-## 🛠️ Tech Stack
-
-- **Languages**: [Insert your go-to languages/frameworks, e.g., JavaScript, Go, Python]  
-- **Tools**: [Mention your tools or libraries here, e.g., Docker, React, Flask]  
-
----
-
 ## 📂 Directory Structure
 
 ```plaintext
