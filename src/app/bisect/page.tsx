@@ -16,7 +16,7 @@ interface PrevState {
     goodCommits: string[];
     badCommits: string[];
     currentIndex: number | null;
-    result: unknown;
+    result: Result | null;
     isActive: boolean;
 }
 
@@ -24,6 +24,13 @@ interface Action {
     type: string;
     commit: string;
     prevState: PrevState;
+}
+
+type Result = {
+    message?: string;
+    type: string;
+    lastGood?: Commit;
+    firstBad?: Commit;
 }
 
 // Real test scenario with Angular commit convention
@@ -50,7 +57,7 @@ export default function CommitBisect() {
     const [currentIndex, setCurrentIndex] = useState<number | null>(null);
     const [goodCommits, setGoodCommits] = useState<Set<string>>(new Set());
     const [badCommits, setBadCommits] = useState<Set<string>>(new Set());
-    const [result, setResult] = useState<any>(null);
+    const [result, setResult] = useState<Result | null>(null);
     const [isActive, setIsActive] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [actionHistory, setActionHistory] = useState<Action[]>([]);
@@ -195,7 +202,7 @@ export default function CommitBisect() {
 
         setGoodCommits(newGoodCommits);
         if (nextBounds.done) {
-            setResult(nextBounds.result);
+            setResult(nextBounds.result ?? null);
             setIsActive(false);
         } else {
             if (nextBounds.nextIndex) {
@@ -231,10 +238,12 @@ export default function CommitBisect() {
 
         setBadCommits(newBadCommits);
         if (nextBounds.done) {
-            setResult(nextBounds.result);
+            setResult(nextBounds.result ?? null);
             setIsActive(false);
         } else {
-            setCurrentIndex(nextBounds.nextIndex);
+            if (nextBounds.nextIndex) {
+                setCurrentIndex(nextBounds.nextIndex);
+            }
         }
     };
 
@@ -373,7 +382,7 @@ export default function CommitBisect() {
                         </div>
                     )}
 
-                    {result && (
+                    {!!result && (
                         <Alert>
                             <AlertDescription>
                                 {result.type === "FOUND_TRANSITION" ? (
@@ -382,13 +391,13 @@ export default function CommitBisect() {
                                         <div className="mt-2 space-y-3">
                                             <div className="bg-green-50 p-3 rounded">
                                                 <p className="text-sm text-green-800 font-medium">Last good commit:</p>
-                                                <p className="font-mono text-sm">{result.lastGood.hash}</p>
-                                                <p className="text-sm mt-1">{result.lastGood.message}</p>
+                                                <p className="font-mono text-sm">{result.lastGood?.hash}</p>
+                                                <p className="text-sm mt-1">{result.lastGood?.message}</p>
                                             </div>
                                             <div className="bg-red-50 p-3 rounded">
                                                 <p className="text-sm text-red-800 font-medium">First bad commit:</p>
-                                                <p className="font-mono text-sm">{result.firstBad.hash}</p>
-                                                <p className="text-sm mt-1">{result.firstBad.message}</p>
+                                                <p className="font-mono text-sm">{result.firstBad?.hash}</p>
+                                                <p className="text-sm mt-1">{result.firstBad?.message}</p>
                                             </div>
                                         </div>
                                         <p className="mt-4 text-sm text-gray-600">
@@ -411,7 +420,7 @@ export default function CommitBisect() {
                 </CardContent>
 
                 <CardFooter className="flex justify-end">
-                    {(isActive || result) && (
+                    {(isActive || !!result) && (
                         <Button
                             onClick={reset}
                             variant="outline"
