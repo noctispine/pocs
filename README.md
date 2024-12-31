@@ -1,6 +1,3 @@
-
----
-
 # 📦 pocs
 
 **pocs** is my handy container for all the proof-of-concept (PoC) projects I whip up in under 2 hours. It’s where speed meets innovation, all in one little powerhouse of productivity! 🚀
