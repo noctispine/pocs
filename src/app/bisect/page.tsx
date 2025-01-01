@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from 'react';
-import { Check, X, PlayCircle, RotateCcw } from 'lucide-react';
+import { Check, X, RotateCcw } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { CommitList } from '@/components/commit-list';
+import { StartOptions } from '@/components/start-options';
 
 interface Commit {
     hash: string;
@@ -33,25 +34,6 @@ type Result = {
     firstBad?: Commit;
 }
 
-// Real test scenario with Angular commit convention
-const testData = [
-    { hash: "a123b4c", message: "chore(setup): initialize React project with configuration" },
-    { hash: "b234c5d", message: "feat(auth): implement OAuth authentication flow" },
-    { hash: "c345d6e", message: "refactor(forms): extract shared form components" },
-    { hash: "d456e7f", message: "chore(deps): upgrade dependencies to latest versions" },
-    { hash: "e567f8g", message: "fix(nav): resolve Safari routing issues" },
-    { hash: "f678g9h", message: "feat(api): add REST endpoints for user data" },
-    { hash: "g789h0i", message: "style(theme): update design system tokens" },
-    { hash: "h890i1j", message: "feat(settings): add user preferences page" },
-    { hash: "i901j2k", message: "perf(render): optimize component re-renders" },
-    { hash: "j012k3l", message: "security(input): add XSS protection" },
-    { hash: "k123l4m", message: "docs(api): update endpoint documentation" },
-    { hash: "l234m5n", message: "fix(auth): patch token validation vulnerability" },
-    { hash: "m345n6o", message: "feat(export): implement data export functionality" },
-    { hash: "n456o7p", message: "perf(db): add query result caching" },
-    { hash: "o567p8q", message: "feat(dashboard): redesign main layout" }
-];
-
 export default function CommitBisect() {
     const [commits, setCommits] = useState<Commit[]>([]);
     const [currentIndex, setCurrentIndex] = useState<number | null>(null);
@@ -63,14 +45,12 @@ export default function CommitBisect() {
     const [actionHistory, setActionHistory] = useState<Action[]>([]);
 
     const validateStateWithNewCommits = (newGoodCommits: Set<string>, newBadCommits: Set<string>): boolean => {
-        // Check if any commit is marked as both good and bad
         const intersection = new Set([...newGoodCommits].filter(x => newBadCommits.has(x)));
         if (intersection.size > 0) {
             setError(`Commit ${[...intersection][0]} marked as both good and bad`);
             return false;
         }
 
-        // Check for inconsistent state (good commit after bad commit)
         const goodIndices = [...newGoodCommits].map(hash =>
             commits.findIndex(c => c.hash === hash)
         );
@@ -81,7 +61,7 @@ export default function CommitBisect() {
         if (goodIndices.length > 0 && badIndices.length > 0) {
             const latestGood = Math.max(...goodIndices);
             const earliestBad = Math.min(...badIndices);
-            if (latestGood > earliestBad) {
+            if (earliestBad > latestGood) {
                 setError("Inconsistent state: good commit found after bad commit");
                 return false;
             }
@@ -100,12 +80,15 @@ export default function CommitBisect() {
             commits.findIndex(c => c.hash === hash)
         ).filter(index => index !== -1);
 
-        const latestGoodIndex = goodIndices.length > 0 ? Math.max(...goodIndices) : -1;
-        const earliestBadIndex = badIndices.length > 0 ? Math.min(...badIndices) : commits.length;
+        console.debug('goodIndices >>', goodIndices)
+        console.debug('badIndices >>', badIndices)
 
-        // Check if all commits are marked
+        const latestGoodIndex = goodIndices.length > 0 ? Math.min(...goodIndices) : -1;
+        const earliestBadIndex = badIndices.length > 0 ? Math.max(...badIndices) : commits.length;
+
+
+        // Check for all commits marked
         if (currentGoodCommits.size + currentBadCommits.size >= commits.length) {
-            // If all commits are marked as good
             if (currentGoodCommits.size === commits.length) {
                 return {
                     done: true,
@@ -115,7 +98,6 @@ export default function CommitBisect() {
                     }
                 };
             }
-            // If all commits are marked as bad
             if (currentBadCommits.size === commits.length) {
                 return {
                     done: true,
@@ -127,8 +109,10 @@ export default function CommitBisect() {
             }
         }
 
-        // Found the transition
-        if (earliestBadIndex - latestGoodIndex === 1) {
+        console.debug('earliestBadIndex - latestGoodIndex >>', earliestBadIndex - latestGoodIndex)
+
+        // Found transition
+        if (latestGoodIndex - earliestBadIndex === 1) {
             return {
                 done: true,
                 result: {
@@ -139,24 +123,24 @@ export default function CommitBisect() {
             };
         }
 
-        // Still searching
+        // Binary search logic
         if (latestGoodIndex === -1 && earliestBadIndex === commits.length) {
-            // No commits marked yet, stay at middle
+            console.debug('here');
             return { done: false, nextIndex: Math.floor(commits.length / 2) };
         } else if (latestGoodIndex === -1) {
-            // Only bad commits marked, search first half
-            return { done: false, nextIndex: Math.floor(earliestBadIndex / 2) };
-        } else if (earliestBadIndex === commits.length) {
-            // Only good commits marked, search second half
+            console.debug('here 2');
+            // Only bad commits marked - search later half
             return {
                 done: false,
-                nextIndex: Math.min(
-                    commits.length - 1,
-                    latestGoodIndex + Math.floor((commits.length - latestGoodIndex) / 2)
-                )
+                nextIndex: earliestBadIndex + Math.floor((commits.length - earliestBadIndex) / 2)
             };
+        } else if (earliestBadIndex === commits.length) {
+            console.debug('here 3');
+            // Only good commits marked - search earlier half
+            const newIndex = Math.floor(latestGoodIndex / 2);
+            return { done: false, nextIndex: Math.max(0, newIndex) };
         } else {
-            // Both good and bad commits marked, search between them
+            console.debug('here 4');
             return {
                 done: false,
                 nextIndex: latestGoodIndex + Math.floor((earliestBadIndex - latestGoodIndex) / 2)
@@ -183,6 +167,7 @@ export default function CommitBisect() {
         newGoodCommits.add(currentHash);
 
         const nextBounds = calculateNewBounds(newGoodCommits, badCommits);
+        console.debug('nextBounds >>', nextBounds)
         if (!validateStateWithNewCommits(newGoodCommits, badCommits)) return;
 
         // Save current state for undo
@@ -205,7 +190,7 @@ export default function CommitBisect() {
             setResult(nextBounds.result ?? null);
             setIsActive(false);
         } else {
-            if (nextBounds.nextIndex) {
+            if (typeof nextBounds.nextIndex === 'number') {
                 setCurrentIndex(nextBounds.nextIndex);
             }
         }
@@ -217,8 +202,10 @@ export default function CommitBisect() {
         const currentHash = commits[currentIndex].hash;
         const newBadCommits = new Set(badCommits);
         newBadCommits.add(currentHash);
+        console.debug('newBadCommits >>', newBadCommits)
 
         const nextBounds = calculateNewBounds(goodCommits, newBadCommits);
+
         if (!validateStateWithNewCommits(goodCommits, newBadCommits)) return;
 
         // Save current state for undo
@@ -241,7 +228,7 @@ export default function CommitBisect() {
             setResult(nextBounds.result ?? null);
             setIsActive(false);
         } else {
-            if (nextBounds.nextIndex) {
+            if (typeof nextBounds.nextIndex === 'number') {
                 setCurrentIndex(nextBounds.nextIndex);
             }
         }
@@ -274,7 +261,7 @@ export default function CommitBisect() {
     };
 
     return (
-        <div className="w-full max-w-2xl mx-auto p-4">
+        <div className="w-full max-w-7xl mx-auto p-4">
             <Card>
                 <CardHeader>
                     <CardTitle>Git Bisect UI</CardTitle>
@@ -291,77 +278,68 @@ export default function CommitBisect() {
 
                 <CardContent>
                     {error && (
-                        <Alert variant="destructive">
+                        <Alert variant="destructive" className="mb-4">
                             <AlertDescription>{error}</AlertDescription>
                         </Alert>
                     )}
 
                     {!isActive && !result && (
-                        <div className="flex justify-center">
-                            <Button
-                                onClick={() => startBisect(testData)}
-                                className="flex items-center gap-2"
-                            >
-                                <PlayCircle className="w-4 h-4" />
-                                Start Bisect
-                            </Button>
-                        </div>
+                        <StartOptions onStart={startBisect} />
                     )}
 
                     {isActive && currentIndex !== null && (
-                        <div className="space-y-4">
-                            <div className="text-center space-y-2">
-                                <p className="text-lg font-medium">Testing Commit</p>
-                                <div className="bg-gray-50 p-4 rounded-lg space-y-2">
-                                    <div className="font-mono text-sm">
-                                        <span className="text-gray-500">commit</span> {commits[currentIndex].hash}
-                                    </div>
-                                    <div className="text-sm">
-                                        <span className="text-gray-500">message:</span> {commits[currentIndex].message}
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <div className="space-y-4">
+                                <div className="text-center space-y-2">
+                                    <p className="text-lg font-medium">Testing Commit</p>
+                                    <div className="bg-gray-50 p-4 rounded-lg space-y-2">
+                                        <div className="font-mono text-sm">
+                                            <span className="text-gray-500">commit</span> {commits[currentIndex].hash}
+                                        </div>
+                                        <div className="text-sm">
+                                            <span className="text-gray-500">message:</span> {commits[currentIndex].message}
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
 
-                            <div className="flex flex-col items-center gap-4">
-                                <div className="flex justify-center gap-4">
-                                    <Button
-                                        onClick={markGood}
-                                        variant="outline"
-                                        className="flex items-center gap-2 min-w-[120px] transition-all duration-200"
-                                        disabled={!isActive}
-                                    >
-                                        <Check className="w-4 h-4" />
-                                        Mark as Good
-                                    </Button>
-                                    <Button
-                                        onClick={markBad}
-                                        variant="outline"
-                                        className="flex items-center gap-2 min-w-[120px] transition-all duration-200"
-                                        disabled={!isActive}
-                                    >
-                                        <X className="w-4 h-4" />
-                                        Mark as Bad
-                                    </Button>
-                                    <Button
-                                        onClick={undoLastAction}
-                                        variant="ghost"
-                                        className={`flex items-center gap-2 min-w-[100px] transition-all duration-200 ${actionHistory.length === 0 ? 'opacity-50 cursor-not-allowed' : ''
-                                            }`}
-                                        disabled={actionHistory.length === 0}
-                                    >
-                                        <RotateCcw className="w-4 h-4" />
-                                        Undo
-                                    </Button>
-                                </div>
-
-                                <div className="text-sm text-gray-500 min-h-[80px] flex flex-col items-center justify-center">
-                                    <div className="flex gap-4">
-                                        <p className="bg-green-50 px-3 py-1 rounded">Good commits: {goodCommits.size}</p>
-                                        <p className="bg-red-50 px-3 py-1 rounded">Bad commits: {badCommits.size}</p>
+                                <div className="flex flex-col items-center gap-4">
+                                    <div className="flex flex-wrap justify-center gap-4">
+                                        <Button
+                                            onClick={markGood}
+                                            variant="outline"
+                                            className="flex items-center gap-2 min-w-[120px]"
+                                            disabled={!isActive}
+                                        >
+                                            <Check className="w-4 h-4" />
+                                            Mark as Good
+                                        </Button>
+                                        <Button
+                                            onClick={markBad}
+                                            variant="outline"
+                                            className="flex items-center gap-2 min-w-[120px]"
+                                            disabled={!isActive}
+                                        >
+                                            <X className="w-4 h-4" />
+                                            Mark as Bad
+                                        </Button>
+                                        <Button
+                                            onClick={undoLastAction}
+                                            variant="ghost"
+                                            className="flex items-center gap-2 min-w-[100px]"
+                                            disabled={actionHistory.length === 0}
+                                        >
+                                            <RotateCcw className="w-4 h-4" />
+                                            Undo
+                                        </Button>
                                     </div>
-                                    <div className="h-12 flex items-center justify-center mt-2">
+
+                                    <div className="text-sm text-gray-500">
+                                        <div className="flex flex-wrap justify-center gap-4">
+                                            <p className="bg-green-50 px-3 py-1 rounded">Good commits: {goodCommits.size}</p>
+                                            <p className="bg-red-50 px-3 py-1 rounded">Bad commits: {badCommits.size}</p>
+                                        </div>
                                         {actionHistory.length > 0 && (
-                                            <div className="text-xs bg-gray-100 px-3 py-2 rounded flex items-center gap-2">
+                                            <div className="text-xs bg-gray-100 px-3 py-2 rounded mt-2 flex items-center justify-center gap-2">
                                                 {actionHistory[actionHistory.length - 1].type === 'MARK_GOOD' ?
                                                     <Check className="w-3 h-3 text-green-600" /> :
                                                     <X className="w-3 h-3 text-red-600" />
@@ -371,18 +349,20 @@ export default function CommitBisect() {
                                         )}
                                     </div>
                                 </div>
+                            </div>
 
-                                <CommitList
-                                    commits={commits}
-                                    currentIndex={currentIndex}
-                                    goodCommits={goodCommits}
-                                    badCommits={badCommits}
-                                />
+                            <div className="border border-gray-200 rounded-lg overflow-hidden">
+                                <div className="bg-gray-50 px-4 py-2 border-b border-gray-200">
+                                    <h3 className="text-sm font-medium text-gray-700">Commit History</h3>
+                                </div>
+                                <div className="divide-y divide-gray-200 max-h-[500px] overflow-y-auto">
+                                    <CommitList commits={commits} badCommits={badCommits} currentIndex={currentIndex} goodCommits={goodCommits} />
+                                </div>
                             </div>
                         </div>
                     )}
 
-                    {!!result && (
+                    {result && (
                         <Alert>
                             <AlertDescription>
                                 {result.type === "FOUND_TRANSITION" ? (
@@ -420,7 +400,7 @@ export default function CommitBisect() {
                 </CardContent>
 
                 <CardFooter className="flex justify-end">
-                    {(isActive || !!result) && (
+                    {(isActive || result) && (
                         <Button
                             onClick={reset}
                             variant="outline"

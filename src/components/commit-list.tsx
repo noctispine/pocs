@@ -1,6 +1,5 @@
-// components/commit-list.tsx
 "use client";
-
+import React, { useEffect, useRef } from 'react';
 import { Check, X, ArrowRight } from 'lucide-react';
 
 interface Commit {
@@ -16,46 +15,66 @@ interface CommitListProps {
 }
 
 export function CommitList({ commits, currentIndex, goodCommits, badCommits }: CommitListProps) {
+    const listRef = useRef<HTMLDivElement>(null);
+    const itemRefs = useRef<Record<number, HTMLDivElement | null>>({});
+
+    useEffect(() => {
+        if (currentIndex !== null && itemRefs.current[currentIndex]) {
+            itemRefs.current[currentIndex]?.scrollIntoView({
+                behavior: 'smooth',
+                block: 'center'
+            });
+        }
+    }, [currentIndex]);
+
     return (
-        <div className="mt-8 border border-gray-200 rounded-lg overflow-hidden">
-            <div className="bg-gray-50 px-4 py-2 border-b border-gray-200">
-                <h3 className="text-sm font-medium text-gray-700">Commit History</h3>
-            </div>
-            <div className="divide-y divide-gray-200">
-                {commits.map((commit, index) => (
+        <div ref={listRef} className="max-h-96 overflow-y-auto">
+            {commits.map((commit, index) => {
+                const isGood = goodCommits.has(commit.hash);
+                const isBad = badCommits.has(commit.hash);
+                const isCurrent = currentIndex === index;
+                
+                return (
                     <div
                         key={commit.hash}
-                        className={`px-4 py-3 flex items-center gap-3 transition-colors duration-200 ${goodCommits.has(commit.hash) ? 'bg-green-50' :
-                                badCommits.has(commit.hash) ? 'bg-red-50' :
-                                    'bg-white'
-                            }`}
+                        ref={(el: HTMLDivElement | null) => {
+                            itemRefs.current[index] = el;
+                        }}
+                        className={`px-4 py-3 flex items-center gap-3 transition-colors duration-200 ${
+                            isGood ? 'bg-green-50' :
+                            isBad ? 'bg-red-50' :
+                            'bg-white'
+                        }`}
                     >
-                        {currentIndex === index && (
+                        {isCurrent && (
                             <div className="animate-pulse">
                                 <ArrowRight className="w-4 h-4 text-blue-500" />
                             </div>
                         )}
-                        {currentIndex !== index && <div className="w-4" />}
+                        {!isCurrent && <div className="w-4" />}
                         <div className="flex-1 min-w-0">
                             <div className="flex items-baseline gap-2">
-                                <code className="text-xs font-mono text-gray-500">{commit.hash}</code>
-                                <span className={`text-sm truncate ${goodCommits.has(commit.hash) ? 'text-green-700' :
-                                        badCommits.has(commit.hash) ? 'text-red-700' :
-                                            'text-gray-700'
-                                    }`}>
+                                <code className="text-xs font-mono text-gray-500 hidden sm:inline">
+                                    {commit.hash}
+                                </code>
+                                <span className={`text-sm truncate ${
+                                    isGood ? 'text-green-700' :
+                                    isBad ? 'text-red-700' :
+                                    'text-gray-700'
+                                }`}>
                                     {commit.message}
                                 </span>
                             </div>
                         </div>
-                        {goodCommits.has(commit.hash) && (
+                        {isGood && (
                             <Check className="w-4 h-4 text-green-500" />
                         )}
-                        {badCommits.has(commit.hash) && (
+                        {isBad && (
                             <X className="w-4 h-4 text-red-500" />
                         )}
                     </div>
-                ))}
-            </div>
+                );
+            })}
         </div>
     );
 }
